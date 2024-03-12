@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { Button } from "../ui/button";
-    import { auth, user } from "$lib/firebase";
+    import { auth } from "$lib/firebase";
 	import { signOut } from "firebase/auth";
+	import { user } from "../stores/userStore";
 </script>
 
 <div class="supports-backdrop-blur:bg-background/60 fixed left-0 right-0 top-0 z-20 border-b bg-background/95 backdrop-blur">

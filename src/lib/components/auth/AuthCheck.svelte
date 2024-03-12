@@ -1,6 +1,13 @@
 <script lang="ts">
-    import { user } from "$lib/firebase";
 	import { Button } from "../ui/button";
+	import { goto } from "$app/navigation";
+	import { browser } from "$app/environment";
+	import { user } from "../stores/userStore";
+
+    $: if (!$user && browser) {
+        console.warn('denied permission');
+        goto('/signin');
+    }
 </script>
   
 {#if $user}
