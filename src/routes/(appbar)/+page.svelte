@@ -17,7 +17,7 @@
 		DateFormatter,
 		CalendarDate
 	} from '@internationalized/date';
-	import { DocumentReference, addDoc, collection, deleteDoc } from 'firebase/firestore';
+	import { DocumentReference, addDoc, collection, deleteDoc, getDocs } from 'firebase/firestore';
 	import { CalendarIcon, PartyPopper, Trash } from 'lucide-svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 
@@ -42,7 +42,11 @@
 		partyDate = undefined;
 	}
 
-	function deleteParty(ref: DocumentReference) {
+	async function deleteParty(ref: DocumentReference) {
+		const collectionSnapshot = await getDocs(collection(ref, 'suggestions'));
+		collectionSnapshot.forEach((doc) => {
+			deleteDoc(doc.ref);
+		});
 		deleteDoc(ref);
 	}
 </script>
