@@ -6,21 +6,46 @@
 	import { Label } from '../ui/label';
 	import { auth } from '$lib/firebase';
 
-	import { GoogleAuthProvider, signInWithPopup, sendSignInLinkToEmail } from 'firebase/auth';
+	import {
+		GoogleAuthProvider,
+		signInWithPopup,
+		sendSignInLinkToEmail,
+		isSignInWithEmailLink,
+		signInWithEmailLink
+	} from 'firebase/auth';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { page } from '$app/stores';
 
 	let loading = false;
 	let email = '';
-	$: returnUrl = $page.url.searchParams.get('return');
+	let returnUrl = $page.url.searchParams.get('return');
+
+	if (isSignInWithEmailLink(auth, window.location.href)) {
+		let email = window.localStorage.getItem('emailForSignIn');
+		let returnUrl = window.localStorage.getItem('returnUrl');
+		if (!email) {
+			email = window.prompt('Please provide your email for confirmation');
+		}
+		if (email) {
+			signInWithEmailLink(auth, email, window.location.href)
+				.then(() => {
+					window.localStorage.removeItem('emailForSignIn');
+					window.localStorage.removeItem('returnUrl');
+					toast('Signed In!');
+					goto(returnUrl ?? '/');
+				})
+				.catch((error) => {
+					toast(error.message);
+				});
+		}
+	}
 
 	async function signInWithGoogle() {
 		const provider = new GoogleAuthProvider();
 		loading = true;
 		signInWithPopup(auth, provider)
-			.then((user) => {
-				console.log(user);
+			.then(() => {
 				toast('Signed In!');
 				goto(returnUrl ?? '/');
 			})
@@ -33,7 +58,7 @@
 	async function signInEmailLink() {
 		loading = true;
 		const actionCodeSettings = {
-			url: `https://fiji-party-music.web.app/${returnUrl ?? '/'}`,
+			url: `https://fiji-party-music.web.app/signin`,
 			handleCodeInApp: true
 		};
 		sendSignInLinkToEmail(auth, email, actionCodeSettings)
@@ -41,6 +66,10 @@
 				// The link was successfully sent. Inform the user.
 				// Save the email locally so you don't need to ask the user for it again
 				// if they open the link on the same device.
+				window.localStorage.setItem('emailForSignIn', email);
+				if (returnUrl) {
+					window.localStorage.setItem('returnUrl', returnUrl);
+				}
 				toast('An email was sent to your inbox!');
 				loading = false;
 				// ...

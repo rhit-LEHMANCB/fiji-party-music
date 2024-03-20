@@ -18,10 +18,12 @@
 		CalendarDate
 	} from '@internationalized/date';
 	import { DocumentReference, addDoc, collection, deleteDoc } from 'firebase/firestore';
-	import { CalendarIcon, Trash } from 'lucide-svelte';
+	import { CalendarIcon, PartyPopper, Trash } from 'lucide-svelte';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 
 	const df = new DateFormatter('en-US', {
-		dateStyle: 'long'
+		dateStyle: 'long',
+		timeZone: 'UTC'
 	});
 
 	let partyName = '';
@@ -50,7 +52,9 @@
 		<h1 class="text-xl">Parties</h1>
 		{#if $userData?.isAdmin}
 			<Dialog.Root bind:open={dialogOpen}>
-				<Dialog.Trigger class={buttonVariants({ variant: 'default' })}>Add Party</Dialog.Trigger>
+				<Dialog.Trigger class={buttonVariants({ variant: 'default' })}
+					><PartyPopper class="mr-2 h-5 w-5" />Add Party</Dialog.Trigger
+				>
 				<Dialog.Content>
 					<Dialog.Header>
 						<Dialog.Title>Add Party</Dialog.Title>
@@ -114,16 +118,31 @@
 							<div class="flex flex-row items-center justify-between">
 								<p>{df.format(new Date(party.date))}</p>
 								{#if $userData?.isAdmin}
-									<Button
-										variant="destructive"
-										size="icon"
-										on:click={(e) => {
-											e.preventDefault();
-											deleteParty(party.ref);
-										}}
-									>
-										<Trash class="h-4 w-4" />
-									</Button>
+									<AlertDialog.Root>
+										<AlertDialog.Trigger asChild let:builder>
+											<Button
+												builders={[builder]}
+												size="icon"
+												on:click={(e) => e.preventDefault()}
+												variant="destructive"><Trash class="h-5 w-5" /></Button
+											>
+										</AlertDialog.Trigger>
+										<AlertDialog.Content>
+											<AlertDialog.Header>
+												<AlertDialog.Title>Please Confirm</AlertDialog.Title>
+												<AlertDialog.Description>
+													This action cannot be undone. This will remove the party from the system
+													permanently.
+												</AlertDialog.Description>
+											</AlertDialog.Header>
+											<AlertDialog.Footer>
+												<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+												<AlertDialog.Action on:click={() => deleteParty(party.ref)}
+													>Confirm</AlertDialog.Action
+												>
+											</AlertDialog.Footer>
+										</AlertDialog.Content>
+									</AlertDialog.Root>
 								{/if}
 							</div>
 						</Card.Content>

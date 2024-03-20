@@ -24,14 +24,14 @@
 	import { PUBLIC_LAST_API_KEY } from '$env/static/public';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { Separator } from '$lib/components/ui/separator';
-	import { Check, ArrowUpRight, Plus, CalendarClock } from 'lucide-svelte';
+	import { Check, ArrowUpRight, Plus, CalendarClock, Music } from 'lucide-svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import { ThumbsUp } from 'lucide-svelte';
 	import { ThumbsDown } from 'lucide-svelte';
 	import Collection from '$lib/components/Firebase/Collection.svelte';
 	import { userData, user } from '$lib/components/stores/userStore';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { toast } from 'svelte-sonner';
 
@@ -144,7 +144,7 @@
 			{#if $user}
 				<Dialog.Root bind:open={dialogOpen}>
 					<Dialog.Trigger class={buttonVariants({ variant: 'default' })}
-						>Suggest Song</Dialog.Trigger
+						><Music class="mr-2 h-5 w-5" />Request Song</Dialog.Trigger
 					>
 					<Dialog.Content class="md:max-w-[80%]">
 						<Dialog.Header>
@@ -272,7 +272,7 @@
 															<AlertDialog.Title>Please Confirm</AlertDialog.Title>
 															<AlertDialog.Description>
 																This action cannot be undone. This will remove the song from the
-																suggestions permanently.
+																requests permanently.
 															</AlertDialog.Description>
 														</AlertDialog.Header>
 														<AlertDialog.Footer>
@@ -359,7 +359,7 @@
 															<AlertDialog.Title>Please Confirm</AlertDialog.Title>
 															<AlertDialog.Description>
 																This action cannot be undone. This will remove the song from the
-																suggestions permanently.
+																requests permanently.
 															</AlertDialog.Description>
 														</AlertDialog.Header>
 														<AlertDialog.Footer>
