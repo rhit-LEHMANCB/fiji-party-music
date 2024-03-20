@@ -1,8 +1,8 @@
-import { auth, db} from "$lib/firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import type { Readable } from "svelte/motion";
-import { writable, derived } from "svelte/store";
-import { docStore } from "./firestore";
+import { auth, db } from '$lib/firebase';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import type { Readable } from 'svelte/motion';
+import { writable, derived } from 'svelte/store';
+import { docStore } from './firestore';
 
 function userStore() {
 	let unsubscribe: () => void;

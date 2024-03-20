@@ -14,12 +14,11 @@
 		getLocalTimeZone,
 		type DateValue,
 		today,
-		parseDate,
 		DateFormatter,
 		CalendarDate
 	} from '@internationalized/date';
-	import { addDoc, collection } from 'firebase/firestore';
-	import { CalendarIcon } from 'lucide-svelte';
+	import { DocumentReference, addDoc, collection, deleteDoc } from 'firebase/firestore';
+	import { CalendarIcon, Trash } from 'lucide-svelte';
 
 	const df = new DateFormatter('en-US', {
 		dateStyle: 'long'
@@ -27,6 +26,7 @@
 
 	let partyName = '';
 	let partyDate: DateValue | undefined;
+	let dialogOpen = false;
 
 	let placeholder: DateValue = today(getLocalTimeZone());
 
@@ -35,6 +35,13 @@
 			name: partyName,
 			date: partyDate?.toString()
 		});
+		dialogOpen = false;
+		partyName = '';
+		partyDate = undefined;
+	}
+
+	function deleteParty(ref: DocumentReference) {
+		deleteDoc(ref);
 	}
 </script>
 
@@ -42,7 +49,7 @@
 	<div class="flex flex-row items-center gap-5">
 		<h1 class="text-xl">Parties</h1>
 		{#if $userData?.isAdmin}
-			<Dialog.Root>
+			<Dialog.Root bind:open={dialogOpen}>
 				<Dialog.Trigger class={buttonVariants({ variant: 'default' })}>Add Party</Dialog.Trigger>
 				<Dialog.Content>
 					<Dialog.Header>
@@ -98,13 +105,27 @@
 			<p>No parties</p>
 		{:else}
 			{#each data as party}
-				<a href={`/${party.id}`}>
+				<a href={`/party/${party.id}`}>
 					<Card.Root class="hover:bg-accent hover:text-accent-foreground">
 						<Card.Header>
 							<Card.Title>{party.name}</Card.Title>
 						</Card.Header>
 						<Card.Content>
-							<p>{df.format(new Date(party.date))}</p>
+							<div class="flex flex-row items-center justify-between">
+								<p>{df.format(new Date(party.date))}</p>
+								{#if $userData?.isAdmin}
+									<Button
+										variant="destructive"
+										size="icon"
+										on:click={(e) => {
+											e.preventDefault();
+											deleteParty(party.ref);
+										}}
+									>
+										<Trash class="h-4 w-4" />
+									</Button>
+								{/if}
+							</div>
 						</Card.Content>
 					</Card.Root>
 				</a>

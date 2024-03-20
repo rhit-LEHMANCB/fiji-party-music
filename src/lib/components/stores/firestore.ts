@@ -1,6 +1,13 @@
-import { db } from "$lib/firebase";
-import { CollectionReference, DocumentReference, Firestore, Query, collection, doc, onSnapshot } from "firebase/firestore";
-import { writable } from "svelte/store";
+import {
+	CollectionReference,
+	DocumentReference,
+	Firestore,
+	Query,
+	collection,
+	doc,
+	onSnapshot
+} from 'firebase/firestore';
+import { writable } from 'svelte/store';
 
 interface DocStore<T> {
 	subscribe: (cb: (value: T | null) => void) => void | (() => void);
@@ -13,6 +20,7 @@ interface DocStore<T> {
  * @param  {T} startWith optional default data
  * @returns a store with realtime updates on document data
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function docStore<T = any>(
 	firestore: Firestore,
 	ref: string | DocumentReference<T>,
@@ -98,7 +106,10 @@ export function collectionStore<T>(
 		};
 	}
 
-	const colRef: CollectionReference<T> | Query<T> = typeof existingRef === 'string' ? (collection(firestore, existingRef) as CollectionReference<T>) : existingRef;
+	const colRef: CollectionReference<T> | Query<T> =
+		typeof existingRef === 'string'
+			? (collection(firestore, existingRef) as CollectionReference<T>)
+			: existingRef;
 
 	const { subscribe } = writable(startWith, (set) => {
 		unsubscribe = onSnapshot(colRef, (snapshot) => {

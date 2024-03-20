@@ -6,11 +6,14 @@
 	import { Label } from '../ui/label';
 	import { auth } from '$lib/firebase';
 
-	import { GoogleAuthProvider, signInWithPopup, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+	import { GoogleAuthProvider, signInWithPopup, sendSignInLinkToEmail } from 'firebase/auth';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
+	import { page } from '$app/stores';
 
 	let loading = false;
+	let email = '';
+	$: returnUrl = $page.url.searchParams.get('return');
 
 	async function signInWithGoogle() {
 		const provider = new GoogleAuthProvider();
@@ -19,7 +22,7 @@
 			.then((user) => {
 				console.log(user);
 				toast('Signed In!');
-				goto('/');
+				goto(returnUrl ?? '/');
 			})
 			.catch((error) => {
 				toast(error.message);
@@ -27,13 +30,20 @@
 			});
 	}
 
-	async function signInAnon() {
+	async function signInEmailLink() {
 		loading = true;
-		signInAnonymously(auth)
-			.then((user) => {
-				console.log(user);
-				toast('Signed In!');
-				goto('/');
+		const actionCodeSettings = {
+			url: `https://fiji-party-music.web.app/${returnUrl ?? '/'}`,
+			handleCodeInApp: true
+		};
+		sendSignInLinkToEmail(auth, email, actionCodeSettings)
+			.then(() => {
+				// The link was successfully sent. Inform the user.
+				// Save the email locally so you don't need to ask the user for it again
+				// if they open the link on the same device.
+				toast('An email was sent to your inbox!');
+				loading = false;
+				// ...
 			})
 			.catch((error) => {
 				toast(error.message);
@@ -46,15 +56,31 @@
 </script>
 
 <div class={cn('grid gap-6', className)} {...$$restProps}>
-	<div class="grid gap-2">
-		{#if loading}
-			<Button disabled>
-				<Loader2 class="mr-2 h-4 w-4 animate-spin" />
-			</Button>
-		{:else}
-			<Button on:click={signInAnon}>Sign In Anonymously</Button>
-		{/if}
-	</div>
+	<form on:submit={signInEmailLink}>
+		<div class="grid gap-2">
+			<div class="grid gap-1">
+				<Label class="sr-only" for="email">Email</Label>
+				<Input
+					bind:value={email}
+					id="email"
+					required
+					placeholder="name@example.com"
+					type="email"
+					autocapitalize="none"
+					autocomplete="email"
+					autocorrect="off"
+					disabled={loading}
+				/>
+			</div>
+			{#if loading}
+				<Button disabled>
+					<Loader2 class="mr-2 h-4 w-4 animate-spin" />
+				</Button>
+			{:else}
+				<Button type="submit">Sign In With Email Link</Button>
+			{/if}
+		</div>
+	</form>
 	<div class="relative">
 		<div class="absolute inset-0 flex items-center">
 			<span class="w-full border-t" />
