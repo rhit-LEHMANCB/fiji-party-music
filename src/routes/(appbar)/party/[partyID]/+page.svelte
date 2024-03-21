@@ -126,6 +126,10 @@
 	}
 </script>
 
+<svelte:head>
+	<title>{$partyStore?.name ?? 'Party Songs'}</title>
+</svelte:head>
+
 <div class="flex h-[calc(100dvh-4rem)] flex-col gap-5 p-5">
 	<div class="flex flex-col gap-5">
 		<Breadcrumb.Root>

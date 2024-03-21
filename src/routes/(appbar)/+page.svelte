@@ -20,6 +20,7 @@
 	import { DocumentReference, addDoc, collection, deleteDoc, getDocs } from 'firebase/firestore';
 	import { CalendarIcon, PartyPopper, Trash } from 'lucide-svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 
 	const df = new DateFormatter('en-US', {
 		dateStyle: 'long',
@@ -50,6 +51,10 @@
 		deleteDoc(ref);
 	}
 </script>
+
+<svelte:head>
+	<title>Home</title>
+</svelte:head>
 
 <div class="flex flex-col gap-5 p-5">
 	<div class="flex flex-row items-center gap-5">
@@ -154,5 +159,40 @@
 				</a>
 			{/each}
 		{/if}
+
+		<div slot="loading" class="grid grid-cols-1 gap-5">
+			<Card.Root class="w-full">
+				<Card.Header>
+					<Skeleton class="my-1 h-6 w-[250px]" />
+				</Card.Header>
+				<Card.Content>
+					<Skeleton class="my-1 h-5 w-[250px]" />
+				</Card.Content>
+			</Card.Root>
+			<Card.Root class="w-full">
+				<Card.Header>
+					<Skeleton class="my-1 h-6 w-[250px]" />
+				</Card.Header>
+				<Card.Content>
+					<Skeleton class="my-1 h-5 w-[250px]" />
+				</Card.Content>
+			</Card.Root>
+			<Card.Root class="w-full">
+				<Card.Header>
+					<Skeleton class="my-1 h-6 w-[250px]" />
+				</Card.Header>
+				<Card.Content>
+					<Skeleton class="my-1 h-5 w-[250px]" />
+				</Card.Content>
+			</Card.Root>
+			<Card.Root class="w-full">
+				<Card.Header>
+					<Skeleton class="my-1 h-6 w-[250px]" />
+				</Card.Header>
+				<Card.Content>
+					<Skeleton class="my-1 h-5 w-[250px]" />
+				</Card.Content>
+			</Card.Root>
+		</div>
 	</Collection>
 </div>
