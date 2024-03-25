@@ -33,6 +33,7 @@
 	import { userData, user } from '$lib/components/stores/userStore';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { toast } from 'svelte-sonner';
 
 	let partyStore = docStore<DocumentData>(db, `/parties/${$page.params.partyID}`);
@@ -145,55 +146,60 @@
 		</Breadcrumb.Root>
 		<div class="flex flex-row items-center gap-5">
 			<h1 class="text-xl">{$partyStore?.name}</h1>
-			{#if $user}
-				<Dialog.Root bind:open={dialogOpen}>
-					<Dialog.Trigger class={buttonVariants({ variant: 'default' })}
-						><Music class="mr-2 h-5 w-5" />Request Song</Dialog.Trigger
-					>
-					<Dialog.Content class="md:max-w-[80%]">
-						<Dialog.Header>
-							<Dialog.Title>Song Search</Dialog.Title>
-							<Dialog.Description>Please search for a song to suggest.</Dialog.Description>
-						</Dialog.Header>
-						<div class="grid gap-4 py-4">
-							<form class="grid grid-cols-6 items-center gap-4">
-								<Label for="name" class="text-right">Search</Label>
-								<Input id="name" bind:value={songSearch} class="col-span-4" />
-								<Button type="submit" on:click={searchSongs}>Search</Button>
-							</form>
-							<ScrollArea class="h-72 rounded-md border">
-								<div class="p-4">
-									<h4 class="mb-4 text-sm font-medium leading-none">Results</h4>
-									{#each songResults as songResult}
-										<div class="grid grid-cols-6 items-center justify-center gap-2 text-sm">
-											<img src={songResult.image} alt={songResult.name} />
-											<div class="col-span-4 grid grid-cols-1 items-center lg:grid-cols-2">
-												<div class="overflow-hidden">
+			<Tooltip.Root openDelay={0}>
+				<Tooltip.Trigger>
+					<Dialog.Root bind:open={dialogOpen}>
+						<Dialog.Trigger class={buttonVariants({ variant: 'default' })} disabled={!$user}
+							><Music class="mr-2 h-5 w-5" />Request Song</Dialog.Trigger
+						>
+						<Dialog.Content class="md:max-w-[80%]">
+							<Dialog.Header>
+								<Dialog.Title>Song Search</Dialog.Title>
+								<Dialog.Description>Please search for a song to suggest.</Dialog.Description>
+							</Dialog.Header>
+							<div class="grid gap-4 py-4">
+								<form class="grid grid-cols-6 items-center gap-4">
+									<Label for="name" class="text-right">Search</Label>
+									<Input id="name" bind:value={songSearch} class="col-span-4" />
+									<Button type="submit" on:click={searchSongs}>Search</Button>
+								</form>
+								<ScrollArea class="h-72 rounded-md border">
+									<div class="p-4">
+										<h4 class="mb-4 text-sm font-medium leading-none">Results</h4>
+										{#each songResults as songResult}
+											<div class="grid grid-cols-6 items-center justify-center gap-2 text-sm">
+												<img src={songResult.image} alt={songResult.name} />
+												<div class="col-span-4 grid grid-cols-1 items-center lg:grid-cols-2">
+													<div class="overflow-hidden">
+														<Button
+															href={songResult.url}
+															class="h-full px-0 pb-2 pt-0 lg:pt-2"
+															target="_blank"
+															variant="link">{songResult.name}</Button
+														>
+													</div>
+													<div>{songResult.artist}</div>
+												</div>
+												<div class="inline-flex justify-end">
 													<Button
-														href={songResult.url}
-														class="h-full px-0 pb-2 pt-0 lg:pt-2"
-														target="_blank"
-														variant="link">{songResult.name}</Button
+														variant="secondary"
+														size="icon"
+														on:click={() => addSuggestion(songResult)}><Plus /></Button
 													>
 												</div>
-												<div>{songResult.artist}</div>
 											</div>
-											<div class="inline-flex justify-end">
-												<Button
-													variant="secondary"
-													size="icon"
-													on:click={() => addSuggestion(songResult)}><Plus /></Button
-												>
-											</div>
-										</div>
-										<Separator class="my-2" />
-									{/each}
-								</div>
-							</ScrollArea>
-						</div>
-					</Dialog.Content>
-				</Dialog.Root>
-			{/if}
+											<Separator class="my-2" />
+										{/each}
+									</div>
+								</ScrollArea>
+							</div>
+						</Dialog.Content>
+					</Dialog.Root>
+				</Tooltip.Trigger>
+				{#if !$user}
+					<Tooltip.Content>Please sign in to request a song.</Tooltip.Content>
+				{/if}
+			</Tooltip.Root>
 		</div>
 	</div>
 	<div class="flex flex-row flex-wrap gap-5">
@@ -252,16 +258,35 @@
 											<div class="flex items-center justify-center px-3">
 												<p class="text-2xl font-bold">{song.rating.toLocaleString()}</p>
 											</div>
-											{#if $user && notVoted(song)}
-												<Button size="icon" on:click={() => addVote(song, true)}
-													><ThumbsUp /></Button
-												>
-												<Button
-													size="icon"
-													variant="destructive"
-													on:click={() => addVote(song, false)}><ThumbsDown /></Button
-												>
-											{/if}
+											<Tooltip.Root openDelay={0}>
+												<Tooltip.Trigger>
+													<Button
+														size="icon"
+														on:click={() => addVote(song, true)}
+														disabled={!$user || !notVoted(song)}><ThumbsUp /></Button
+													>
+												</Tooltip.Trigger>
+												{#if !$user}
+													<Tooltip.Content>Please login to vote.</Tooltip.Content>
+												{:else if !notVoted(song)}
+													<Tooltip.Content>You already voted on this song.</Tooltip.Content>
+												{/if}
+											</Tooltip.Root>
+											<Tooltip.Root openDelay={0}>
+												<Tooltip.Trigger>
+													<Button
+														size="icon"
+														variant="destructive"
+														on:click={() => addVote(song, false)}
+														disabled={!$user || !notVoted(song)}><ThumbsDown /></Button
+													>
+												</Tooltip.Trigger>
+												{#if !$user}
+													<Tooltip.Content>Please login to vote.</Tooltip.Content>
+												{:else if !notVoted(song)}
+													<Tooltip.Content>You already voted on this song.</Tooltip.Content>
+												{/if}
+											</Tooltip.Root>
 											{#if $userData?.isAdmin}
 												<AlertDialog.Root>
 													<AlertDialog.Trigger asChild let:builder>
@@ -339,16 +364,35 @@
 											<div class="flex items-center justify-center px-3">
 												<p class="text-2xl font-bold">{song.rating.toLocaleString()}</p>
 											</div>
-											{#if $user && notVoted(song)}
-												<Button size="icon" on:click={() => addVote(song, true)}
-													><ThumbsUp /></Button
-												>
-												<Button
-													size="icon"
-													variant="destructive"
-													on:click={() => addVote(song, false)}><ThumbsDown /></Button
-												>
-											{/if}
+											<Tooltip.Root openDelay={0}>
+												<Tooltip.Trigger>
+													<Button
+														size="icon"
+														on:click={() => addVote(song, true)}
+														disabled={!$user || !notVoted(song)}><ThumbsUp /></Button
+													>
+												</Tooltip.Trigger>
+												{#if !$user}
+													<Tooltip.Content>Please login to vote.</Tooltip.Content>
+												{:else if !notVoted(song)}
+													<Tooltip.Content>You already voted on this song.</Tooltip.Content>
+												{/if}
+											</Tooltip.Root>
+											<Tooltip.Root openDelay={0}>
+												<Tooltip.Trigger>
+													<Button
+														size="icon"
+														variant="destructive"
+														on:click={() => addVote(song, false)}
+														disabled={!$user || !notVoted(song)}><ThumbsDown /></Button
+													>
+												</Tooltip.Trigger>
+												{#if !$user}
+													<Tooltip.Content>Please login to vote.</Tooltip.Content>
+												{:else if !notVoted(song)}
+													<Tooltip.Content>You already voted on this song.</Tooltip.Content>
+												{/if}
+											</Tooltip.Root>
 											{#if $userData?.isAdmin}
 												<AlertDialog.Root>
 													<AlertDialog.Trigger asChild let:builder>
