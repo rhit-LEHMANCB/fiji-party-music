@@ -24,7 +24,7 @@
 	import { PUBLIC_LAST_API_KEY } from '$env/static/public';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { Separator } from '$lib/components/ui/separator';
-	import { Check, ArrowUpRight, Plus, CalendarClock, Music } from 'lucide-svelte';
+	import { Check, ArrowUpRight, Plus, CalendarClock, Music, Loader2 } from 'lucide-svelte';
 	import * as Card from '$lib/components/ui/card';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import { ThumbsUp } from 'lucide-svelte';
@@ -41,9 +41,8 @@
 	let songResults: Song[] = [];
 	let dialogOpen = false;
 	let sortByLiked = true;
+	let songsLoading = false;
 	let filterText = '';
-
-	$: console.log(filterText);
 
 	async function addSuggestion(song: Song) {
 		if (!partyStore.ref || !$user?.uid) {
@@ -94,6 +93,7 @@
 	}
 
 	async function searchSongs() {
+		songsLoading = true;
 		const response = await fetch(
 			`https://ws.audioscrobbler.com/2.0/?method=track.search&track=${songSearch}&api_key=${PUBLIC_LAST_API_KEY}&format=json`
 		);
@@ -123,6 +123,7 @@
 					}
 				})
 			);
+			songsLoading = false;
 		}
 	}
 </script>
@@ -164,33 +165,39 @@
 									<Button type="submit" on:click={searchSongs}>Search</Button>
 								</form>
 								<ScrollArea class="h-72 rounded-md border">
-									<div class="p-4">
-										<h4 class="mb-4 text-sm font-medium leading-none">Results</h4>
-										{#each songResults as songResult}
-											<div class="grid grid-cols-6 items-center justify-center gap-2 text-sm">
-												<img src={songResult.image} alt={songResult.name} />
-												<div class="col-span-4 grid grid-cols-1 items-center lg:grid-cols-2">
-													<div class="overflow-hidden">
+									{#if songsLoading}
+										<div class="flex h-72 w-full items-center justify-center">
+											<Loader2 class="h-16 w-16 animate-spin" />
+										</div>
+									{:else}
+										<div class="p-4">
+											<h4 class="mb-4 text-sm font-medium leading-none">Results</h4>
+											{#each songResults as songResult}
+												<div class="grid grid-cols-6 items-center justify-center gap-2 text-sm">
+													<img src={songResult.image} alt={songResult.name} />
+													<div class="col-span-4 grid grid-cols-1 items-center lg:grid-cols-2">
+														<div class="overflow-hidden">
+															<Button
+																href={songResult.url}
+																class="h-full px-0 pb-2 pt-0 lg:pt-2"
+																target="_blank"
+																variant="link">{songResult.name}</Button
+															>
+														</div>
+														<div>{songResult.artist}</div>
+													</div>
+													<div class="inline-flex justify-end">
 														<Button
-															href={songResult.url}
-															class="h-full px-0 pb-2 pt-0 lg:pt-2"
-															target="_blank"
-															variant="link">{songResult.name}</Button
+															variant="secondary"
+															size="icon"
+															on:click={() => addSuggestion(songResult)}><Plus /></Button
 														>
 													</div>
-													<div>{songResult.artist}</div>
 												</div>
-												<div class="inline-flex justify-end">
-													<Button
-														variant="secondary"
-														size="icon"
-														on:click={() => addSuggestion(songResult)}><Plus /></Button
-													>
-												</div>
-											</div>
-											<Separator class="my-2" />
-										{/each}
-									</div>
+												<Separator class="my-2" />
+											{/each}
+										</div>
+									{/if}
 								</ScrollArea>
 							</div>
 						</Dialog.Content>
