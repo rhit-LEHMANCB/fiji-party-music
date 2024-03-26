@@ -3,7 +3,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { db } from '$lib/firebase';
+	import { auth, db } from '$lib/firebase';
 	import { type Song } from '$lib/utils';
 	import {
 		type DocumentData,
@@ -21,7 +21,7 @@
 	} from 'firebase/firestore';
 	import { docStore } from '$lib/components/stores/firestore';
 	import { page } from '$app/stores';
-	import { PUBLIC_LAST_API_KEY } from '$env/static/public';
+	import { PUBLIC_CLIENT_ID, PUBLIC_CLIENT_SECRET } from '$env/static/public';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Check, ArrowUpRight, Plus, CalendarClock, Music, Loader2 } from 'lucide-svelte';
@@ -35,6 +35,8 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { toast } from 'svelte-sonner';
+	import * as binary from 'bops';
+	import { signInAnonymously } from 'firebase/auth';
 
 	let partyStore = docStore<DocumentData>(db, `/parties/${$page.params.partyID}`);
 	let songSearch = '';
@@ -44,24 +46,67 @@
 	let songsLoading = false;
 	let filterText = '';
 
+	async function checkAuthStatus() {
+		if (!$user) {
+			const user = await signInAnonymously(auth);
+			console.log(user);
+
+			return user.user.uid;
+		} else {
+			return $user.uid;
+		}
+	}
+
+	async function getAccessToken() {
+		const localStorageToken = localStorage.getItem('token');
+		const token: { access_token: string; expires: Date } | null = localStorageToken
+			? JSON.parse(localStorageToken)
+			: null;
+		if (token && token.expires > new Date()) {
+			return token.access_token;
+		} else {
+			const response = await fetch('https://accounts.spotify.com/api/token', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					Authorization:
+						'Basic ' +
+						binary.to(binary.from(PUBLIC_CLIENT_ID + ':' + PUBLIC_CLIENT_SECRET), 'base64')
+				},
+				body: new URLSearchParams({
+					grant_type: 'client_credentials'
+				})
+			});
+			const data = await response.json();
+			const dateNow = new Date();
+			dateNow.setSeconds(dateNow.getSeconds() + data.expires_in);
+			localStorage.setItem(
+				'token',
+				JSON.stringify({ access_token: data.access_token, expires: dateNow })
+			);
+			return data.access_token;
+		}
+	}
+
 	async function addSuggestion(song: Song) {
-		if (!partyStore.ref || !$user?.uid) {
+		const userID = await checkAuthStatus();
+		if (!partyStore.ref || !userID) {
 			return;
 		}
 		const q = query(collection(partyStore.ref, 'suggestions'), where('url', '==', song.url));
 		const querySnapshot = await getDocs(q);
 		const existingSong = querySnapshot.docs[0];
-		if (querySnapshot.size > 0 && notVoted(existingSong.data())) {
+		if (querySnapshot.size > 0 && notVoted(existingSong.data(), userID)) {
 			toast("That song has already been suggested. I'll add a vote to it for you.");
 			updateDoc(existingSong.ref, {
-				votes: arrayUnion({ userID: $user.uid, upvoted: true }),
+				votes: arrayUnion({ userID: userID, upvoted: true }),
 				rating: existingSong.data().rating + 1
 			});
 		} else if (querySnapshot.size > 0) {
 			toast('You already voted for this song!');
 		} else {
 			song.rating = 1;
-			song.votes = [{ userID: $user.uid, upvoted: true }];
+			song.votes = [{ userID: userID, upvoted: true }];
 			song.dateAdded = serverTimestamp();
 			addDoc(collection(partyStore.ref, 'suggestions'), song);
 		}
@@ -77,52 +122,40 @@
 		deleteDoc(ref);
 	}
 
-	function notVoted(song: DocumentData) {
-		return !(song as Song).votes.some((vote) => vote.userID == $user?.uid);
+	function notVoted(song: DocumentData, userID?: string) {
+		return !(song as Song).votes.some((vote) => vote.userID == userID);
 	}
 
-	function addVote(song: DocumentData, upvoted: boolean) {
-		console.log(song);
-		if (!$user?.uid) {
+	async function addVote(song: DocumentData, upvoted: boolean) {
+		const userID = await checkAuthStatus();
+		if (!userID) {
 			return;
 		}
 		updateDoc(song.ref, {
-			votes: arrayUnion({ userID: $user.uid, upvoted }),
+			votes: arrayUnion({ userID: userID, upvoted }),
 			rating: upvoted ? song.rating + 1 : song.rating - 1
 		});
 	}
 
 	async function searchSongs() {
 		songsLoading = true;
-		const response = await fetch(
-			`https://ws.audioscrobbler.com/2.0/?method=track.search&track=${songSearch}&api_key=${PUBLIC_LAST_API_KEY}&format=json`
-		);
+		const response = await fetch(`https://api.spotify.com/v1/search?q=${songSearch}&type=track`, {
+			headers: {
+				Authorization: 'Bearer ' + (await getAccessToken())
+			}
+		});
 		if (response.ok) {
 			const data = await response.json();
-			songResults = await Promise.all(
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				data.results.trackmatches.track.map(async (track: { [key: string]: any }) => {
-					const moreInfoResponse = await fetch(
-						`https://ws.audioscrobbler.com/2.0/?method=track.getInfo&api_key=${PUBLIC_LAST_API_KEY}&artist=${track.artist}&track=${track.name}&format=json`
-					);
-					const moreInfo = await moreInfoResponse.json();
-					if (response.ok && moreInfo.track?.album?.image) {
-						return {
-							name: track.name,
-							artist: track.artist,
-							url: track.url,
-							image: moreInfo.track.album.image[1]['#text']
-						};
-					} else {
-						return {
-							name: track.name,
-							artist: track.artist,
-							url: track.url,
-							image: track.image[1]['#text']
-						};
-					}
-				})
-			);
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			songResults = data.tracks.items.map((track: { [key: string]: any }) => {
+				return {
+					name: track.name,
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					artist: track.artists.map((artist: { [key: string]: any }) => artist.name).join(', '),
+					url: `https://open.spotify.com/track/${track.id}`,
+					image: track.album.images[2].url
+				};
+			});
 			songsLoading = false;
 		}
 	}
@@ -148,66 +181,59 @@
 			</Breadcrumb.Root>
 			<div class="flex flex-row items-center gap-5">
 				<h1 class="text-xl">{$partyStore?.name}</h1>
-				<Tooltip.Root openDelay={0}>
-					<Tooltip.Trigger>
-						<Dialog.Root bind:open={dialogOpen}>
-							<Dialog.Trigger class={buttonVariants({ variant: 'default' })} disabled={!$user}
-								><Music class="mr-2 h-5 w-5" />Request Song</Dialog.Trigger
-							>
-							<Dialog.Content>
-								<Dialog.Header>
-									<Dialog.Title>Song Search</Dialog.Title>
-									<Dialog.Description>Please search for a song to suggest.</Dialog.Description>
-								</Dialog.Header>
-								<div class="grid gap-4 py-4">
-									<form class="grid grid-cols-6 items-center gap-4">
-										<Label for="name" class="text-right">Search</Label>
-										<Input id="name" bind:value={songSearch} class="col-span-4" />
-										<Button type="submit" on:click={searchSongs}>Search</Button>
-									</form>
-									<ScrollArea class="h-72 rounded-md border">
-										{#if songsLoading}
-											<div class="flex h-72 w-full items-center justify-center">
-												<Loader2 class="h-16 w-16 animate-spin" />
-											</div>
-										{:else}
-											<div class="p-4">
-												<h4 class="mb-4 text-sm font-medium leading-none">Results</h4>
-												{#each songResults as songResult}
-													<div class="grid grid-cols-6 items-center justify-center gap-2 text-sm">
-														<img src={songResult.image} alt={songResult.name} />
-														<div class="col-span-4 grid grid-cols-1 items-center">
-															<div class="overflow-hidden">
-																<Button
-																	href={songResult.url}
-																	class="h-full px-0 pb-2 pt-0"
-																	target="_blank"
-																	variant="link">{songResult.name}</Button
-																>
-															</div>
-															<div>{songResult.artist}</div>
-														</div>
-														<div class="inline-flex justify-end">
-															<Button
-																variant="secondary"
-																size="icon"
-																on:click={() => addSuggestion(songResult)}><Plus /></Button
-															>
-														</div>
+				<Dialog.Root bind:open={dialogOpen}>
+					<Dialog.Trigger class={buttonVariants({ variant: 'default' })}
+						><Music class="mr-2 h-5 w-5" />Request Song</Dialog.Trigger
+					>
+					<Dialog.Content>
+						<Dialog.Header>
+							<Dialog.Title>Song Search</Dialog.Title>
+							<Dialog.Description>Please search for a song to suggest.</Dialog.Description>
+						</Dialog.Header>
+						<div class="grid gap-4 py-4">
+							<form class="grid grid-cols-6 items-center gap-4">
+								<Label for="name" class="text-right">Search</Label>
+								<Input id="name" bind:value={songSearch} class="col-span-4" />
+								<Button type="submit" on:click={searchSongs}>Search</Button>
+							</form>
+							<ScrollArea class="h-72 rounded-md border">
+								{#if songsLoading}
+									<div class="flex h-72 w-full items-center justify-center">
+										<Loader2 class="h-16 w-16 animate-spin" />
+									</div>
+								{:else}
+									<div class="p-4">
+										<h4 class="mb-4 text-sm font-medium leading-none">Results</h4>
+										{#each songResults as songResult}
+											<div class="grid grid-cols-6 items-center justify-center gap-2 text-sm">
+												<img src={songResult.image} alt={songResult.name} />
+												<div class="col-span-4 grid grid-cols-1 items-center">
+													<div class="overflow-hidden">
+														<Button
+															href={songResult.url}
+															class="h-full px-0 pb-2 pt-0"
+															target="_blank"
+															variant="link">{songResult.name}</Button
+														>
 													</div>
-													<Separator class="my-2" />
-												{/each}
+													<div>{songResult.artist}</div>
+												</div>
+												<div class="inline-flex justify-end">
+													<Button
+														variant="secondary"
+														size="icon"
+														on:click={() => addSuggestion(songResult)}><Plus /></Button
+													>
+												</div>
 											</div>
-										{/if}
-									</ScrollArea>
-								</div>
-							</Dialog.Content>
-						</Dialog.Root>
-					</Tooltip.Trigger>
-					{#if !$user}
-						<Tooltip.Content>Please sign in to request a song.</Tooltip.Content>
-					{/if}
-				</Tooltip.Root>
+											<Separator class="my-2" />
+										{/each}
+									</div>
+								{/if}
+							</ScrollArea>
+						</div>
+					</Dialog.Content>
+				</Dialog.Root>
 			</div>
 		</div>
 		<div class="flex flex-row flex-wrap gap-5">
@@ -266,32 +292,28 @@
 												<div class="flex items-center justify-center px-3">
 													<p class="text-2xl font-bold">{song.rating.toLocaleString()}</p>
 												</div>
-												<Tooltip.Root openDelay={0}>
+												<Tooltip.Root>
 													<Tooltip.Trigger>
 														<Button
 															size="icon"
 															on:click={() => addVote(song, true)}
-															disabled={!$user || !notVoted(song)}><ThumbsUp /></Button
+															disabled={!notVoted(song, $user?.uid)}><ThumbsUp /></Button
 														>
 													</Tooltip.Trigger>
-													{#if !$user}
-														<Tooltip.Content>Please login to vote.</Tooltip.Content>
-													{:else if !notVoted(song)}
+													{#if !notVoted(song, $user?.uid)}
 														<Tooltip.Content>You already voted on this song.</Tooltip.Content>
 													{/if}
 												</Tooltip.Root>
-												<Tooltip.Root openDelay={0}>
+												<Tooltip.Root>
 													<Tooltip.Trigger>
 														<Button
 															size="icon"
 															variant="destructive"
 															on:click={() => addVote(song, false)}
-															disabled={!$user || !notVoted(song)}><ThumbsDown /></Button
+															disabled={!notVoted(song, $user?.uid)}><ThumbsDown /></Button
 														>
 													</Tooltip.Trigger>
-													{#if !$user}
-														<Tooltip.Content>Please login to vote.</Tooltip.Content>
-													{:else if !notVoted(song)}
+													{#if !notVoted(song, $user?.uid)}
 														<Tooltip.Content>You already voted on this song.</Tooltip.Content>
 													{/if}
 												</Tooltip.Root>
@@ -372,32 +394,28 @@
 												<div class="flex items-center justify-center px-3">
 													<p class="text-2xl font-bold">{song.rating.toLocaleString()}</p>
 												</div>
-												<Tooltip.Root openDelay={0}>
+												<Tooltip.Root>
 													<Tooltip.Trigger>
 														<Button
 															size="icon"
 															on:click={() => addVote(song, true)}
-															disabled={!$user || !notVoted(song)}><ThumbsUp /></Button
+															disabled={!notVoted(song, $user?.uid)}><ThumbsUp /></Button
 														>
 													</Tooltip.Trigger>
-													{#if !$user}
-														<Tooltip.Content>Please login to vote.</Tooltip.Content>
-													{:else if !notVoted(song)}
+													{#if !notVoted(song, $user?.uid)}
 														<Tooltip.Content>You already voted on this song.</Tooltip.Content>
 													{/if}
 												</Tooltip.Root>
-												<Tooltip.Root openDelay={0}>
+												<Tooltip.Root>
 													<Tooltip.Trigger>
 														<Button
 															size="icon"
 															variant="destructive"
 															on:click={() => addVote(song, false)}
-															disabled={!$user || !notVoted(song)}><ThumbsDown /></Button
+															disabled={!notVoted(song, $user?.uid)}><ThumbsDown /></Button
 														>
 													</Tooltip.Trigger>
-													{#if !$user}
-														<Tooltip.Content>Please login to vote.</Tooltip.Content>
-													{:else if !notVoted(song)}
+													{#if !notVoted(song, $user?.uid)}
 														<Tooltip.Content>You already voted on this song.</Tooltip.Content>
 													{/if}
 												</Tooltip.Root>

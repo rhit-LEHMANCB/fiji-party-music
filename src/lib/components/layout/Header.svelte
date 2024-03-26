@@ -19,7 +19,7 @@
 				target="_blank"
 				variant="outline"><Github /></Button
 			>
-			{#if $user}
+			{#if $user && !$user.isAnonymous}
 				<Button size="sm" on:click={() => signOut(auth)}>Sign Out</Button>
 			{:else}
 				<Button href={`/signin?return=${$page.url.pathname}`} size="sm">Sign In</Button>
