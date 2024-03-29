@@ -17,7 +17,9 @@
 		updateDoc,
 		serverTimestamp,
 		getDocs,
-		where
+		where,
+		writeBatch,
+		arrayRemove
 	} from 'firebase/firestore';
 	import { docStore } from '$lib/components/stores/firestore';
 	import { page } from '$app/stores';
@@ -33,7 +35,6 @@
 	import { userData, user } from '$lib/components/stores/userStore';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Tabs from '$lib/components/ui/tabs';
-	import * as Tooltip from '$lib/components/ui/tooltip';
 	import { toast } from 'svelte-sonner';
 	import * as binary from 'bops';
 	import { signInAnonymously } from 'firebase/auth';
@@ -49,7 +50,6 @@
 	async function checkAuthStatus() {
 		if (!$user) {
 			const user = await signInAnonymously(auth);
-			console.log(user);
 
 			return user.user.uid;
 		} else {
@@ -126,15 +126,44 @@
 		return !(song as Song).votes.some((vote) => vote.userID == userID);
 	}
 
+	function getVoted(song: DocumentData, userID?: string): boolean | undefined {
+		return (song as Song).votes.find((vote) => vote.userID == userID)?.upvoted;
+	}
+
 	async function addVote(song: DocumentData, upvoted: boolean) {
-		const userID = await checkAuthStatus();
-		if (!userID) {
-			return;
+		if (getVoted(song, $user?.uid) === upvoted) {
+			const userID = await checkAuthStatus();
+			if (!userID) {
+				return;
+			}
+			updateDoc(song.ref, {
+				votes: arrayRemove({ userID, upvoted }),
+				rating: upvoted ? song.rating - 1 : song.rating + 1
+			});
+		} else if (getVoted(song, $user?.uid) === undefined) {
+			const userID = await checkAuthStatus();
+			if (!userID) {
+				return;
+			}
+			updateDoc(song.ref, {
+				votes: arrayUnion({ userID: userID, upvoted }),
+				rating: upvoted ? song.rating + 1 : song.rating - 1
+			});
+		} else {
+			const userID = await checkAuthStatus();
+			if (!userID) {
+				return;
+			}
+			const batch = writeBatch(db);
+			batch.update(song.ref, {
+				votes: arrayRemove({ userID, upvoted: !upvoted }),
+				rating: upvoted ? song.rating + 2 : song.rating - 2
+			});
+			batch.update(song.ref, {
+				votes: arrayUnion({ userID, upvoted })
+			});
+			batch.commit();
 		}
-		updateDoc(song.ref, {
-			votes: arrayUnion({ userID: userID, upvoted }),
-			rating: upvoted ? song.rating + 1 : song.rating - 1
-		});
 	}
 
 	async function searchSongs() {
@@ -292,31 +321,16 @@
 												<div class="flex items-center justify-center px-3">
 													<p class="text-2xl font-bold">{song.rating.toLocaleString()}</p>
 												</div>
-												<Tooltip.Root>
-													<Tooltip.Trigger>
-														<Button
-															size="icon"
-															on:click={() => addVote(song, true)}
-															disabled={!notVoted(song, $user?.uid)}><ThumbsUp /></Button
-														>
-													</Tooltip.Trigger>
-													{#if !notVoted(song, $user?.uid)}
-														<Tooltip.Content>You already voted on this song.</Tooltip.Content>
-													{/if}
-												</Tooltip.Root>
-												<Tooltip.Root>
-													<Tooltip.Trigger>
-														<Button
-															size="icon"
-															variant="destructive"
-															on:click={() => addVote(song, false)}
-															disabled={!notVoted(song, $user?.uid)}><ThumbsDown /></Button
-														>
-													</Tooltip.Trigger>
-													{#if !notVoted(song, $user?.uid)}
-														<Tooltip.Content>You already voted on this song.</Tooltip.Content>
-													{/if}
-												</Tooltip.Root>
+												<Button
+													size="icon"
+													variant={getVoted(song, $user?.uid) === true ? 'default' : 'outline'}
+													on:click={() => addVote(song, true)}><ThumbsUp /></Button
+												>
+												<Button
+													size="icon"
+													variant={getVoted(song, $user?.uid) === false ? 'destructive' : 'outline'}
+													on:click={() => addVote(song, false)}><ThumbsDown /></Button
+												>
 												{#if $userData?.isAdmin}
 													<AlertDialog.Root>
 														<AlertDialog.Trigger asChild let:builder>
@@ -394,31 +408,16 @@
 												<div class="flex items-center justify-center px-3">
 													<p class="text-2xl font-bold">{song.rating.toLocaleString()}</p>
 												</div>
-												<Tooltip.Root>
-													<Tooltip.Trigger>
-														<Button
-															size="icon"
-															on:click={() => addVote(song, true)}
-															disabled={!notVoted(song, $user?.uid)}><ThumbsUp /></Button
-														>
-													</Tooltip.Trigger>
-													{#if !notVoted(song, $user?.uid)}
-														<Tooltip.Content>You already voted on this song.</Tooltip.Content>
-													{/if}
-												</Tooltip.Root>
-												<Tooltip.Root>
-													<Tooltip.Trigger>
-														<Button
-															size="icon"
-															variant="destructive"
-															on:click={() => addVote(song, false)}
-															disabled={!notVoted(song, $user?.uid)}><ThumbsDown /></Button
-														>
-													</Tooltip.Trigger>
-													{#if !notVoted(song, $user?.uid)}
-														<Tooltip.Content>You already voted on this song.</Tooltip.Content>
-													{/if}
-												</Tooltip.Root>
+												<Button
+													size="icon"
+													variant={getVoted(song, $user?.uid) === true ? 'default' : 'outline'}
+													on:click={() => addVote(song, true)}><ThumbsUp /></Button
+												>
+												<Button
+													size="icon"
+													variant={getVoted(song, $user?.uid) === false ? 'destructive' : 'outline'}
+													on:click={() => addVote(song, false)}><ThumbsDown /></Button
+												>
 												{#if $userData?.isAdmin}
 													<AlertDialog.Root>
 														<AlertDialog.Trigger asChild let:builder>
